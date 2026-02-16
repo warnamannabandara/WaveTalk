@@ -1,0 +1,33 @@
+"use client";
+
+interface CalendarTabsProps {
+    activeTab: string;
+    setActiveTab: (tab: string) => void;
+}
+
+const CalendarTabs = ({ activeTab, setActiveTab }: CalendarTabsProps) => {
+    const tabs = [
+        { id: 'calendar', label: 'Calendar' },
+        { id: 'tasks', label: 'Tasks' },
+        { id: 'projects', label: 'Projects' },
+    ];
+
+    return (
+        <div className="flex items-center gap-1 bg-[#1A231F] p-1 rounded-xl mb-6 border border-[#2A3430]">
+            {tabs.map((tab) => (
+                <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === tab.id
+                            ? 'bg-[#2A3430] text-emerald-400 border border-white/5'
+                            : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                        }`}
+                >
+                    {tab.label}
+                </button>
+            ))}
+        </div>
+    );
+};
+
+export default CalendarTabs;
