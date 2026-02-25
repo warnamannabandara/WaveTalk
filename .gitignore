@@ -8,6 +8,7 @@ build/
 out/
 .next/
 .nuxt/
+dataset/
 
 # Environment variables
 .env

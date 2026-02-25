@@ -1,0 +1,135 @@
+# ============================================================
+# SLSL Translation System — Kubernetes Deployment
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slsl-api
+  namespace: wavetalk
+  labels:
+    app: slsl-api
+    version: "1.0.0"
+    component: ml-inference
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: slsl-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0         # Zero-downtime deployments
+  template:
+    metadata:
+      labels:
+        app: slsl-api
+        version: "1.0.0"
+    spec:
+      # ── Security context ────────────────────────────────────
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+
+      containers:
+        - name: slsl-api
+          image: wavetalk/slsl-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+
+          # ── Environment ────────────────────────────────────
+          env:
+            - name: APP_HOST
+              value: "0.0.0.0"
+            - name: APP_PORT
+              value: "8000"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: DNN_MODEL_PATH
+              value: "/app/saved_models/dnn_model.h5"
+            - name: LABEL_MAP_PATH
+              value: "/app/saved_models/label_map.json"
+            - name: CORS_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: slsl-config
+                  key: cors_origins
+
+          # ── Resources ──────────────────────────────────────
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+
+          # ── Volume mounts ──────────────────────────────────
+          volumeMounts:
+            - name: models-volume
+              mountPath: /app/saved_models
+              readOnly: true
+
+          # ── Probes ─────────────────────────────────────────
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+
+      # ── Volumes ────────────────────────────────────────────
+      volumes:
+        - name: models-volume
+          persistentVolumeClaim:
+            claimName: slsl-models-pvc
+
+      # ── Pod affinity: spread across nodes ──────────────────
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: ["slsl-api"]
+                topologyKey: kubernetes.io/hostname
+
+---
+# ── ConfigMap ─────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slsl-config
+  namespace: wavetalk
+data:
+  cors_origins: "http://localhost:3000,https://wavetalk.app"
+
+---
+# ── PersistentVolumeClaim for model files ──────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: slsl-models-pvc
+  namespace: wavetalk
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 500Mi
+  storageClassName: standard

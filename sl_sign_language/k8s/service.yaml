@@ -1,0 +1,49 @@
+# ============================================================
+# SLSL Translation System — Kubernetes Service
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: slsl-api-service
+  namespace: wavetalk
+  labels:
+    app: slsl-api
+spec:
+  type: ClusterIP
+  selector:
+    app: slsl-api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8000
+
+---
+# ── Ingress (optional — expose externally) ────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: slsl-api-ingress
+  namespace: wavetalk
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Enable WebSocket support
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "Upgrade";
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: slsl.wavetalk.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: slsl-api-service
+                port:
+                  number: 80

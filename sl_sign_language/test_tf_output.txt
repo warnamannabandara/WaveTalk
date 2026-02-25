@@ -1,0 +1,13 @@
+  × No solution found when resolving dependencies for split (markers:
+  │ python_full_version >= '3.14' and sys_platform == 'win32'):
+  ╰─▶ Because tensorflow==2.15.1 depends on ml-dtypes>=0.3.1,<0.4.dev0 and
+      tensorflow-intel==2.15.0 depends on ml-dtypes>=0.2.0,<0.3.dev0, we
+      can conclude that tensorflow==2.15.1 and tensorflow-intel==2.15.0 are
+      incompatible.
+      And because your project depends on tensorflow==2.15.1 and
+      tensorflow-intel{sys_platform == 'win32'}==2.15.0, we can conclude that
+      your project's requirements are unsatisfiable.
+
+      hint: While the active Python version is 3.11, the resolution failed for
+      other Python versions supported by your project. Consider limiting your
+      project's supported Python versions using `requires-python`.
