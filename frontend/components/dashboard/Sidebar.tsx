@@ -4,12 +4,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Video, Calendar, FileText, BarChart2, Settings, User } from 'lucide-react';
+import { Home, MessageSquare, Video, Calendar, FileText, BarChart2, Settings, User } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 
 const Sidebar = () => {
+    const { data: session } = useSession();
 
     const navItems = [
-        { icon: Home, label: 'Chat', href: '/dashboard/chat', active: true },
+        { icon: Home, label: 'Home', href: '/dashboard' },
+        { icon: MessageSquare, label: 'Chat', href: '/dashboard/chat' },
         { icon: Video, label: 'Meet', href: '/dashboard/meet' },
         { icon: Calendar, label: 'Calendar', href: '/dashboard/calendar' },
         { icon: FileText, label: 'Documents', href: '/dashboard/documents' },
@@ -55,11 +58,17 @@ const Sidebar = () => {
             <div className="pt-4 border-t border-[#2A3430]">
                 <button className="flex items-center gap-3 px-2 w-full hover:bg-white/5 p-2 rounded-lg transition-colors group">
                     <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center border border-emerald-800">
-                        <span className="text-xs font-medium text-emerald-200">JD</span>
+                        <span className="text-xs font-medium text-emerald-200">
+                            {session?.user?.name ? session.user.name.substring(0, 2).toUpperCase() : 'U'}
+                        </span>
                     </div>
                     <div className="flex-1 min-w-0 text-left">
-                        <p className="text-sm font-medium text-white truncate group-hover:text-emerald-300 transition-colors">John Doe</p>
-                        <p className="text-xs text-gray-500 truncate">john@example.com</p>
+                        <p className="text-sm font-medium text-white truncate group-hover:text-emerald-300 transition-colors">
+                            {session?.user?.name || 'User'}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                            {session?.user?.email || 'Loading...'}
+                        </p>
                     </div>
                     {/* <LogOut className="w-4 h-4 text-gray-500 group-hover:text-red-400 transition-colors" /> */}
                 </button>

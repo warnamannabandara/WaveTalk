@@ -1,7 +1,7 @@
 import MessageList from '@/components/dashboard/MessageList';
 import ChatArea from '@/components/dashboard/ChatArea';
 
-export default function DashboardPage() {
+export default function ChatPage() {
     return (
         <div className="flex h-full w-full">
             {/* Middle Column: Message List */}

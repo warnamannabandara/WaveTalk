@@ -13,7 +13,7 @@ const MeetPage = () => {
     const [isMeetingActive, setIsMeetingActive] = useState(false);
 
     const handleJoin = () => setIsMeetingActive(true);
-    const handleEnd = () => setIsMeetingActive(false);
+    const handleEnd: () => void = () => setIsMeetingActive(false);
 
     if (isMeetingActive) {
         return (
