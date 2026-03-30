@@ -22,7 +22,7 @@ export default function MeetingSetup({
   }, [isMicCamToggledOn, call?.camera, call?.microphone]);
 
   if (!call) return (
-     <div className="flex h-screen items-center justify-center text-white bg-[#15231D]">Initializing call...</div>
+    <div className="flex h-screen items-center justify-center text-white bg-[#15231D]">Initializing call...</div>
   );
 
   return (
