@@ -10,13 +10,14 @@ out/
 .nuxt/
 dataset/
 
+
 # Environment variables
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-
+sl_sign_language/archive/
 # Logs
 *.log
 npm-debug.log*

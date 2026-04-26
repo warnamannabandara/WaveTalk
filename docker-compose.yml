@@ -1,0 +1,178 @@
+version: "3.9"
+
+services:
+
+  # ──────────────────────────────────────────
+  # MongoDB database (port 27017)
+  # ──────────────────────────────────────────
+  mongo:
+    image: mongo:6.0
+    container_name: wavetalk-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: wavetalk
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────
+  # MinIO object storage (S3-compatible)
+  # API: port 9000 | Console: port 9001
+  # ──────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: wavetalk-minio
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console → http://localhost:9001
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ──────────────────────────────────────────
+  # Node.js / Express API (port 5001)
+  # ──────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wavetalk-backend
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: node --watch server.js
+    environment:
+      PORT: "5001"
+
+      # 👉 USE ONE ONLY:
+
+      # ✅ Option A: Local Mongo (recommended for dev)
+      # mongodb://root:example@localhost:27017/wavetalk?authSource=admin
+      MONGO_URI: "mongodb://root:example@mongo:27017/wavetalk?authSource=admin"
+
+      # ❌ Option B: Atlas (uncomment if needed)
+      # MONGO_URI: "mongodb+srv://username:password@cluster.mongodb.net/wavetalk"
+
+      JWT_SECRET: "wavetalk_jwt_secret"
+      JWT_REFRESH_SECRET: "wavetalk_refresh_secret"
+      JWT_EXPIRES_IN: "15m"
+      JWT_REFRESH_EXPIRES_IN: "7d"
+
+      CLIENT_URL: "http://localhost:3000"
+      NODE_ENV: "development"
+
+      # MinIO (S3-compatible) storage
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_BUCKET: "wavetalk"
+      MINIO_USE_SSL: "false"
+      # Public URL the browser uses to fetch uploaded files
+      MINIO_PUBLIC_URL: "http://localhost:9000"
+
+    depends_on:
+      mongo:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # ──────────────────────────────────────────
+  # Flask + Socket.IO server (port 8000)
+  # ──────────────────────────────────────────
+  flask:
+    build:
+      context: .
+      dockerfile: flask_server/Dockerfile
+    container_name: wavetalk-flask
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./flask_server/app.py:/app/flask_server/app.py
+    environment:
+      FLASK_PORT: "8000"
+      FLASK_SECRET: "wavetalk-flask-secret"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ──────────────────────────────────────────
+  # FastAPI sign-language model service (port 8001)
+  # ──────────────────────────────────────────
+  sl-model:
+    build:
+      context: ./sl_sign_language
+      dockerfile: Dockerfile
+    container_name: wavetalk-sl-model
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./sl_sign_language:/app
+    command: uvicorn app:app --host 0.0.0.0 --port 8001 --reload
+    
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ──────────────────────────────────────────
+  # Next.js frontend (port 3000)
+  # ──────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: wavetalk-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:5001/api"
+      NEXT_PUBLIC_SOCKET_URL: "http://localhost:5001"
+      NEXT_PUBLIC_FLASK_URL: "http://localhost:8000"
+    depends_on:
+      backend:
+        condition: service_healthy
+      flask:
+        condition: service_healthy
+    restart: unless-stopped
+
+# ──────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────
+volumes:
+  mongo_data:
+  minio_data:
