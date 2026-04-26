@@ -1,9 +1,17 @@
 [project]
 name = "flask-server"
 version = "0.1.0"
-description = "Backend Flask Server"
+description = "WaveTalk Sign Language Flask Server"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "flask",
+    "flask-socketio",
+    "flask-cors",
+    "python-socketio[asyncio_client]",
+    "numpy",
+    "tensorflow",
+    "eventlet",
+    "speechrecognition",
+    "pydub",
 ]
