@@ -1,10 +1,40 @@
 "use client";
 
-const StatsCards = () => {
+import { useEffect, useState } from 'react';
+import api from '@/lib/api';
+import type { Task } from '@/app/dashboard/calendar/page';
+
+interface Props {
+    tasks: Task[];
+}
+
+const StatsCards = ({ tasks }: Props) => {
+    const [meetingsThisWeek, setMeetingsThisWeek] = useState<number>(0);
+
+    useEffect(() => {
+        api.get('/meetings').then(({ data }) => {
+            const meetings = data.meetings ?? [];
+            const now = new Date();
+            const weekStart = new Date(now);
+            weekStart.setDate(now.getDate() - now.getDay());
+            weekStart.setHours(0, 0, 0, 0);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 7);
+            const count = meetings.filter((m: { scheduledAt: string }) => {
+                const d = new Date(m.scheduledAt);
+                return d >= weekStart && d < weekEnd;
+            }).length;
+            setMeetingsThisWeek(count);
+        }).catch(() => {});
+    }, []);
+
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.completed).length;
+
     const stats = [
-        { label: 'Total Tasks', value: '5' },
-        { label: 'Completed', value: '2' },
-        { label: 'Meetings This Week', value: '5' },
+        { label: 'Total Tasks', value: String(total) },
+        { label: 'Completed', value: String(completed) },
+        { label: 'Meetings This Week', value: String(meetingsThisWeek) },
     ];
 
     return (

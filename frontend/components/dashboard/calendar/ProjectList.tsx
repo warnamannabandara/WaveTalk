@@ -1,12 +1,26 @@
 "use client";
 
-const ProjectList = () => {
-    const projects = [
-        { name: 'Marketing', completedTasks: 0, totalTasks: 1, progress: 0 },
-        { name: 'Development', completedTasks: 1, totalTasks: 2, progress: 50 },
-        { name: 'Sales', completedTasks: 0, totalTasks: 1, progress: 0 },
-        { name: 'Design', completedTasks: 1, totalTasks: 1, progress: 100 },
-    ];
+import type { Task } from '@/app/dashboard/calendar/page';
+
+interface Props {
+    tasks: Task[];
+}
+
+const ProjectList = ({ tasks }: Props) => {
+    const projectMap = new Map<string, { completed: number; total: number }>();
+    for (const task of tasks) {
+        const entry = projectMap.get(task.project) ?? { completed: 0, total: 0 };
+        entry.total += 1;
+        if (task.completed) entry.completed += 1;
+        projectMap.set(task.project, entry);
+    }
+
+    const projects = Array.from(projectMap.entries()).map(([name, { completed, total }]) => ({
+        name,
+        completedTasks: completed,
+        totalTasks: total,
+        progress: total === 0 ? 0 : Math.round((completed / total) * 100),
+    }));
 
     return (
         <div className="bg-[#1A231F] rounded-2xl p-8 border border-[#2A3430]">
