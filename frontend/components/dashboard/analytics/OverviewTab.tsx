@@ -1,42 +1,74 @@
 "use client";
 
-import { Calendar, Briefcase, Users, Layout } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import api from '@/lib/api';
 
-const activityData = [
-    { name: 'Jan', meetings: 25 },
-    { name: 'Feb', meetings: 22 },
-    { name: 'Mar', meetings: 30 },
-    { name: 'Apr', meetings: 28 },
-    { name: 'May', meetings: 35 },
-    { name: 'Jun', meetings: 32 },
-    { name: 'Jul', meetings: 38 },
-    { name: 'Aug', meetings: 35 },
-    { name: 'Sep', meetings: 42 },
-    { name: 'Oct', meetings: 40 },
-    { name: 'Nov', meetings: 45 },
-    { name: 'Dec', meetings: 38 },
-];
+interface Meeting {
+    _id: string;
+    title: string;
+    meetingId: string;
+    scheduledAt: string;
+    status: string;
+    participants: { _id: string; name: string }[];
+    host: { _id: string; name: string };
+}
 
-const performanceData = [
-    { name: 'Mon', hours: 8, meetings: 4 },
-    { name: 'Tue', hours: 7, meetings: 3 },
-    { name: 'Wed', hours: 9, meetings: 5 },
-    { name: 'Thu', hours: 6, meetings: 2 },
-    { name: 'Fri', hours: 8, meetings: 4 },
-    { name: 'Sat', hours: 2, meetings: 1 },
-    { name: 'Sun', hours: 1, meetings: 1 },
-];
-
-const meetings = [
-    { id: 1, title: 'Team Standup', date: 'Jan 12', time: '9:00 AM', tag: 'Development', color: 'bg-blue-500' },
-    { id: 2, title: 'Client Review', date: 'Jan 13', time: '2:00 PM', tag: 'Sales', color: 'bg-emerald-500' },
-    { id: 3, title: 'Sprint Planning', date: 'Jan 15', time: '10:00 AM', tag: 'Development', color: 'bg-blue-500' },
-    { id: 4, title: 'Design Sync', date: 'Jan 16', time: '3:00 PM', tag: 'Design', color: 'bg-purple-500' },
-    { id: 5, title: 'All Hands', date: 'Jan 18', time: '11:00 AM', tag: 'Company', color: 'bg-amber-500' },
-];
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const OverviewTab = () => {
+    const [meetings, setMeetings] = useState<Meeting[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        api.get('/meetings')
+            .then(({ data }) => setMeetings(data.meetings ?? []))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, []);
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+
+    // Monthly activity: meetings per month for current year
+    const activityData = MONTH_LABELS.map((name, idx) => {
+        const count = meetings.filter(m => {
+            const d = new Date(m.scheduledAt);
+            return d.getFullYear() === currentYear && d.getMonth() === idx;
+        }).length;
+        return { name, meetings: count };
+    });
+
+    // Weekly performance: meetings per day for current week
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+
+    const performanceData = DAY_LABELS.map((name, idx) => {
+        const dayStart = new Date(weekStart);
+        dayStart.setDate(weekStart.getDate() + idx);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayStart.getDate() + 1);
+        const count = meetings.filter(m => {
+            const d = new Date(m.scheduledAt);
+            return d >= dayStart && d < dayEnd;
+        }).length;
+        return { name, meetings: count };
+    });
+
+    // Upcoming meetings: scheduled and in the future
+    const upcomingMeetings = meetings
+        .filter(m => m.status === 'scheduled' && new Date(m.scheduledAt) > now)
+        .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+        .slice(0, 5);
+
+    const formatDate = (iso: string) =>
+        new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const formatTime = (iso: string) =>
+        new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -54,7 +86,7 @@ const OverviewTab = () => {
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#2A3430" vertical={false} />
                                 <XAxis dataKey="name" stroke="#6B7280" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis stroke="#6B7280" fontSize={12} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#6B7280" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#1A231F', border: '1px solid #2A3430', borderRadius: '8px' }}
                                     itemStyle={{ color: '#10B981' }}
@@ -73,12 +105,11 @@ const OverviewTab = () => {
                             <BarChart data={performanceData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#2A3430" vertical={false} />
                                 <XAxis dataKey="name" stroke="#6B7280" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis stroke="#6B7280" fontSize={12} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#6B7280" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#1A231F', border: '1px solid #2A3430', borderRadius: '8px' }}
                                 />
-                                <Bar dataKey="hours" fill="#10B981" radius={[4, 4, 0, 0]} barSize={20} />
-                                <Bar dataKey="meetings" fill="#065F46" radius={[4, 4, 0, 0]} barSize={20} />
+                                <Bar dataKey="meetings" fill="#10B981" radius={[4, 4, 0, 0]} barSize={20} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -88,24 +119,34 @@ const OverviewTab = () => {
             {/* Upcoming Meetings */}
             <div className="bg-[#1A231F] border border-[#2A3430] rounded-2xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-6">Upcoming Meetings</h3>
-                <div className="space-y-3">
-                    {meetings.map((meeting) => (
-                        <div key={meeting.id} className="flex items-center justify-between p-4 bg-[#15231D] border border-[#2A3430] rounded-xl hover:border-[#3A4440] transition-all group">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                                    <Calendar className="w-5 h-5 text-emerald-400" />
+                {loading ? (
+                    <div className="space-y-3">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />
+                        ))}
+                    </div>
+                ) : upcomingMeetings.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-8">No upcoming meetings scheduled</p>
+                ) : (
+                    <div className="space-y-3">
+                        {upcomingMeetings.map((meeting) => (
+                            <div key={meeting._id} className="flex items-center justify-between p-4 bg-[#15231D] border border-[#2A3430] rounded-xl hover:border-[#3A4440] transition-all group">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                                        <Calendar className="w-5 h-5 text-emerald-400" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-medium text-white group-hover:text-emerald-400 transition-colors">{meeting.title}</h4>
+                                        <p className="text-xs text-gray-500 mt-1">{formatDate(meeting.scheduledAt)} • {formatTime(meeting.scheduledAt)}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 className="text-sm font-medium text-white group-hover:text-emerald-400 transition-colors">{meeting.title}</h4>
-                                    <p className="text-xs text-gray-500 mt-1">{meeting.date} • {meeting.time}</p>
-                                </div>
+                                <span className="px-3 py-1 bg-[#1A231F] border border-[#2A3430] rounded-full text-[10px] font-medium text-gray-400">
+                                    {meeting.participants.length} participant{meeting.participants.length !== 1 ? 's' : ''}
+                                </span>
                             </div>
-                            <span className="px-3 py-1 bg-[#1A231F] border border-[#2A3430] rounded-full text-[10px] font-medium text-gray-400">
-                                {meeting.tag}
-                            </span>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
