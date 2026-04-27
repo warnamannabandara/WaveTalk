@@ -1,106 +1,79 @@
-"use client";
+'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Video, MicOff, VideoOff } from 'lucide-react';
+import { Video } from 'lucide-react';
+import api from '@/lib/api';
 
-interface JoinMeetingProps {
-  onClose?: () => void;
+interface Props {
+    onJoin: (meetingId: string) => void;
 }
 
-const JoinMeeting = ({ onClose }: JoinMeetingProps) => {
-    const router = useRouter();
+const JoinMeeting = ({ onJoin }: Props) => {
     const [meetingId, setMeetingId] = useState('');
-    const [isJoining, setIsJoining] = useState(false);
-    const [options, setOptions] = useState({
-        noAudio: false,
-        noVideo: false,
-    });
+    const [passcode, setPasscode] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [instantLoading, setInstantLoading] = useState(false);
 
-    const handleJoinMeeting = () => {
-        if (!meetingId.trim()) return;
-        setIsJoining(true);
-        
-        // Append preferences if needed (logic can be extended later)
-        router.push(`/meeting/${meetingId.trim()}`);
-        if (onClose) onClose();
+    const handleJoin = async () => {
+        if (!meetingId.trim()) { setError('Meeting ID is required'); return; }
+        setError('');
+        setLoading(true);
+        try {
+            await api.post('/meetings/join', { meetingId: meetingId.trim(), passcode: passcode.trim() });
+            onJoin(meetingId.trim());
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Could not join meeting';
+            setError(msg);
+        } finally { setLoading(false); }
+    };
+
+    const handleInstant = async () => {
+        setInstantLoading(true);
+        try {
+            const { data } = await api.post('/meetings', {
+                title: 'Instant Meeting',
+                scheduledAt: new Date().toISOString()
+            });
+            await api.put(`/meetings/${data.meeting._id}/start`);
+            onJoin(data.meeting.meetingId);
+        } catch {
+            setError('Could not start instant meeting');
+        } finally { setInstantLoading(false); }
     };
 
     return (
-        <div className="space-y-8">
-            <div className="space-y-4">
-                <div className="relative group">
-                    <label className="block text-sm font-medium text-emerald-100/60 mb-2 ml-1 transition-colors group-focus-within:text-emerald-400">
-                        Meeting ID or Personal Link Name
-                    </label>
-                    <input
-                        type="text"
-                        placeholder="Enter meeting ID"
-                        value={meetingId}
-                        onChange={(e) => setMeetingId(e.target.value)}
-                        className="w-full bg-[#141B18] border border-[#2A3430] rounded-2xl px-5 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/10 transition-all text-lg"
-                    />
-                </div>
-
-                <div className="relative group">
-                    <label className="block text-sm font-medium text-emerald-100/60 mb-2 ml-1 transition-colors group-focus-within:text-emerald-400">
-                        Your Name
-                    </label>
-                    <input
-                        type="text"
-                        placeholder="Enter your name"
-                        className="w-full bg-[#141B18] border border-[#2A3430] rounded-2xl px-5 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/10 transition-all"
-                    />
+        <div className="space-y-6">
+            <div className="bg-[#1A231F] rounded-2xl p-8 border border-[#2A3430]">
+                <h2 className="text-xl font-medium text-white mb-6">Join a Meeting</h2>
+                {error && (
+                    <div className="mb-4 text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">{error}</div>
+                )}
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-2">Meeting ID</label>
+                        <input type="text" placeholder="e.g. abc-defg-hij" value={meetingId} onChange={e => setMeetingId(e.target.value)}
+                            className="w-full bg-[#141B18] border border-[#2A3430] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 transition-colors" />
+                    </div>
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-2">Passcode (optional)</label>
+                        <input type="password" placeholder="Enter passcode" value={passcode} onChange={e => setPasscode(e.target.value)}
+                            className="w-full bg-[#141B18] border border-[#2A3430] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 transition-colors" />
+                    </div>
+                    <button onClick={handleJoin} disabled={loading}
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 mt-2">
+                        <Video className="w-5 h-5" />
+                        {loading ? 'Joining...' : 'Join Meeting'}
+                    </button>
                 </div>
             </div>
 
-            <div className="space-y-4 border-t border-[#2A3430] pt-6">
-                <p className="text-sm font-medium text-emerald-100/40 uppercase tracking-wider mb-4">Join Options</p>
-                
-                <label className="flex items-center justify-between group cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${options.noAudio ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                           <MicOff className="w-4 h-4" />
-                        </div>
-                        <span className="text-gray-300">Don't connect to audio</span>
-                    </div>
-                    <input 
-                        type="checkbox" 
-                        checked={options.noAudio}
-                        onChange={(e) => setOptions(prev => ({ ...prev, noAudio: e.target.checked }))}
-                        className="w-5 h-5 rounded-md border-[#2A3430] bg-[#141B18] text-emerald-500 focus:ring-emerald-500/20" 
-                    />
-                </label>
-
-                <label className="flex items-center justify-between group cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${options.noVideo ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                           <VideoOff className="w-4 h-4" />
-                        </div>
-                        <span className="text-gray-300">Turn off my video</span>
-                    </div>
-                    <input 
-                        type="checkbox" 
-                        checked={options.noVideo}
-                        onChange={(e) => setOptions(prev => ({ ...prev, noVideo: e.target.checked }))}
-                        className="w-5 h-5 rounded-md border-[#2A3430] bg-[#141B18] text-emerald-500 focus:ring-emerald-500/20" 
-                    />
-                </label>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-                <button
-                    onClick={onClose}
-                    className="flex-1 px-6 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-medium transition-all active:scale-95"
-                >
-                    Cancel
-                </button>
-                <button
-                    onClick={handleJoinMeeting}
-                    disabled={isJoining || !meetingId.trim()}
-                    className="flex-[2] bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95"
-                >
-                    {isJoining ? "Joining..." : "Join"}
+            <div className="bg-[#1A231F] rounded-2xl p-8 border border-[#2A3430]">
+                <h2 className="text-xl font-medium text-white mb-6">Start Instant Meeting</h2>
+                <button onClick={handleInstant} disabled={instantLoading}
+                    className="w-full bg-emerald-600/10 hover:bg-emerald-600/20 disabled:opacity-50 text-emerald-400 border border-emerald-600/30 font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                    <Video className="w-5 h-5" />
+                    {instantLoading ? 'Creating...' : 'Start Meeting Now'}
                 </button>
             </div>
         </div>
@@ -108,4 +81,3 @@ const JoinMeeting = ({ onClose }: JoinMeetingProps) => {
 };
 
 export default JoinMeeting;
-
