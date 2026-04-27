@@ -1,117 +1,162 @@
-"use client";
+'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { DocumentHeader } from '../../../components/dashboard/documents/DocumentHeader';
 import { DocumentFilters } from '../../../components/dashboard/documents/DocumentFilters';
 import { DocumentList } from '../../../components/dashboard/documents/DocumentList';
+import { NoteModal } from '../../../components/dashboard/documents/NoteModal';
 import { Document } from '../../../components/dashboard/documents/DocumentRow';
-
-// Mock Data matching the screenshot
-const initialDocuments: Document[] = [
-    {
-        id: '1',
-        title: 'Q4 Performance Report',
-        type: 'report',
-        date: '2026-01-10',
-        size: '2.4 MB',
-        description: 'Quarterly Review',
-        status: 'past'
-    },
-    {
-        id: '2',
-        title: 'Team Meeting Notes - Jan 11',
-        type: 'note',
-        date: '2026-01-11',
-        size: '156 KB',
-        description: 'Daily Standup',
-        status: 'current'
-    },
-    {
-        id: '3',
-        title: 'Client Presentation Recording',
-        type: 'recording',
-        date: '2026-01-09',
-        size: '124 MB',
-        description: 'Client Demo',
-        status: 'past'
-    },
-    {
-        id: '4',
-        title: 'Sprint Planning Transcript',
-        type: 'report',
-        date: '2026-01-08',
-        size: '89 KB',
-        description: 'Sprint Planning',
-        status: 'past'
-    },
-    {
-        id: '5',
-        title: 'Design Review Notes',
-        type: 'note',
-        date: '2026-01-12',
-        size: '203 KB',
-        description: 'Design Review',
-        status: 'upcoming'
-    },
-    {
-        id: '6',
-        title: 'Monthly Analytics Report',
-        type: 'report',
-        date: '2025-12-31',
-        size: '3.1 MB',
-        description: 'End of Year Review',
-        status: 'past'
-    },
-    {
-        id: '7',
-        title: 'Team Retrospective Recording',
-        type: 'recording',
-        date: '2026-01-05',
-        size: '98 MB',
-        description: 'Retrospective',
-        status: 'past'
-    },
-    {
-        id: '8',
-        title: 'Project Kickoff Notes',
-        type: 'note',
-        date: '2026-01-15',
-        size: '178 KB',
-        description: 'Project Alpha Kickoff',
-        status: 'upcoming'
-    }
-];
+import api from '@/lib/api';
 
 export default function DocumentsPage() {
+    const [documents, setDocuments] = useState<Document[]>([]);
+    const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
+    const [activeStatus, setActiveStatus] = useState('all');
+    const [error, setError] = useState('');
 
-    const filteredDocuments = initialDocuments.filter((doc) => {
-        const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            doc.description.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesFilter = activeFilter === 'all' || doc.type === activeFilter;
+    // Modal state
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
+    const [editingDoc, setEditingDoc] = useState<Document | null>(null);
 
-        return matchesSearch && matchesFilter;
-    });
+    const fetchDocuments = useCallback(async () => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams();
+            if (activeFilter !== 'all') params.set('type', activeFilter);
+            if (activeStatus !== 'all') params.set('status', activeStatus);
+            if (searchQuery) params.set('search', searchQuery);
+            const { data } = await api.get(`/documents?${params.toString()}`);
+            const mapped: Document[] = data.documents.map((d: {
+                _id: string;
+                title: string;
+                type: string;
+                updatedAt: string;
+                fileSize?: number;
+                description?: string;
+                status: string;
+                content?: string;
+                fileUrl?: string;
+                meeting?: { title: string };
+            }) => ({
+                id: d._id,
+                title: d.title,
+                type: d.type as Document['type'],
+                date: new Date(d.updatedAt).toLocaleDateString(),
+                size: d.fileSize ? `${(d.fileSize / 1024).toFixed(0)} KB` : '—',
+                description: d.description || '',
+                status: d.status as Document['status'],
+                content: d.content || '',
+                fileUrl: d.fileUrl || '',
+                meetingTitle: d.meeting?.title || '',
+            }));
+            setDocuments(mapped);
+        } catch {
+            setError('Failed to load documents');
+        } finally { setLoading(false); }
+    }, [activeFilter, activeStatus, searchQuery]);
 
-    const handleSearch = (query: string) => {
-        setSearchQuery(query);
-    };
+    useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
 
     const handleAddNote = () => {
-        console.log('Add Note clicked');
+        setEditingDoc(null);
+        setModalMode('add');
+        setModalOpen(true);
+    };
+
+    const handleSaveNote = async (title: string, content: string) => {
+        if (modalMode === 'add') {
+            await api.post('/documents', { title, type: 'note', content });
+        } else if (editingDoc) {
+            await api.put(`/documents/${editingDoc.id}`, { title, content });
+        }
+        fetchDocuments();
+    };
+
+    const handleEdit = (doc: Document) => {
+        setEditingDoc(doc);
+        setModalMode('edit');
+        setModalOpen(true);
+    };
+
+    const handleView = (doc: Document) => {
+        setEditingDoc(doc);
+        setModalMode('view');
+        setModalOpen(true);
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Delete this document?')) return;
+        try {
+            await api.delete(`/documents/${id}`);
+            setDocuments(prev => prev.filter(d => d.id !== id));
+        } catch {
+            setError('Failed to delete document');
+        }
+    };
+
+    const handleDownload = (doc: Document) => {
+        if (doc.fileUrl) {
+            window.open(doc.fileUrl, '_blank');
+            return;
+        }
+        // Download text content as .txt
+        const text = doc.content
+            ? `${doc.title}\n${'='.repeat(doc.title.length)}\n\n${doc.content}`
+            : doc.title;
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${doc.title.replace(/[^a-z0-9]/gi, '_')}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     return (
-        <div className="p-8 h-full flex flex-col">
-            <DocumentHeader onSearch={handleSearch} onAddNote={handleAddNote} />
+        <>
+            <NoteModal
+                isOpen={modalOpen}
+                onClose={() => setModalOpen(false)}
+                onSave={handleSaveNote}
+                initialTitle={editingDoc?.title ?? ''}
+                initialContent={editingDoc?.content ?? ''}
+                mode={modalMode}
+            />
 
-            <div className="flex-1 bg-[#1A231F] rounded-2xl border border-[#2A3430] overflow-hidden flex flex-col">
-                <div className="p-6 flex-1 overflow-auto">
-                    <DocumentFilters activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-                    <DocumentList documents={filteredDocuments} />
+            <div className="p-8 h-full flex flex-col">
+                <DocumentHeader onSearch={setSearchQuery} onAddNote={handleAddNote} />
+                {error && (
+                    <div className="mb-4 text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">
+                        {error}
+                    </div>
+                )}
+                <div className="flex-1 bg-[#1A231F] rounded-2xl border border-[#2A3430] overflow-hidden flex flex-col">
+                    <div className="p-6 flex-1 overflow-auto">
+                        <DocumentFilters
+                            activeFilter={activeFilter}
+                            onFilterChange={setActiveFilter}
+                            activeStatus={activeStatus}
+                            onStatusChange={setActiveStatus}
+                        />
+                        {loading ? (
+                            <div className="flex justify-center py-12">
+                                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                        ) : (
+                            <DocumentList
+                                documents={documents}
+                                onEdit={handleEdit}
+                                onDelete={handleDelete}
+                                onDownload={handleDownload}
+                                onView={handleView}
+                            />
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 }
