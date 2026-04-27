@@ -1,65 +1,87 @@
 "use client";
 
-const MetricCharts = () => {
+import {
+    AreaChart, Area, BarChart, Bar,
+    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts';
+
+interface SystemMetric {
+    month: string;
+    users: number;
+    meetings: number;
+}
+
+interface FeatureUsage {
+    label: string;
+    count: number;
+    pct: number;
+}
+
+interface MetricChartsProps {
+    systemMetrics: SystemMetric[];
+    featureUsage: FeatureUsage[];
+    loading?: boolean;
+}
+
+const tooltipStyle = {
+    backgroundColor: '#1A231F',
+    border: '1px solid #2A3430',
+    borderRadius: '8px',
+    color: '#d1d5db',
+    fontSize: '12px',
+};
+
+const MetricCharts = ({ systemMetrics, featureUsage, loading }: MetricChartsProps) => {
+    const barData = featureUsage.map(f => ({ name: f.label, count: f.count }));
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* System Metrics */}
             <div className="bg-[#1A231F] border border-[#2A3430] rounded-xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-6">System Metrics</h3>
-                <div className="h-[250px] w-full flex items-end justify-between px-2 relative">
-                    {/* Placeholder for Area Chart */}
-                    <div className="absolute inset-x-6 inset-y-12 bg-emerald-500/5 rounded-lg border border-emerald-500/10 flex items-center justify-center text-gray-500 text-sm italic">
-                        [ Interactive Area Chart Visualization ]
-                    </div>
-                    {/* Y-Axis Labels */}
-                    <div className="flex flex-col justify-between h-full text-[10px] text-gray-600 absolute left-0 pr-2">
-                        <span>160</span>
-                        <span>120</span>
-                        <span>80</span>
-                        <span>40</span>
-                        <span>0</span>
-                    </div>
-                </div>
-                <div className="flex justify-center gap-6 mt-4">
-                    <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-emerald-500/40 border border-emerald-500/60"></div>
-                        <span className="text-xs text-gray-400">users</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-emerald-500/20 border border-emerald-500/30"></div>
-                        <span className="text-xs text-gray-400">meetings</span>
-                    </div>
-                </div>
+                {loading ? (
+                    <div className="h-62.5 bg-white/5 rounded-lg animate-pulse" />
+                ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                        <AreaChart data={systemMetrics} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="gradUsers" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="gradMeetings" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#34d399" stopOpacity={0.2} />
+                                    <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#2A3430" />
+                            <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+                            <Tooltip contentStyle={tooltipStyle} />
+                            <Legend wrapperStyle={{ fontSize: '11px', color: '#9ca3af' }} />
+                            <Area type="monotone" dataKey="users" name="Users" stroke="#10b981" strokeWidth={2} fill="url(#gradUsers)" dot={false} />
+                            <Area type="monotone" dataKey="meetings" name="Meetings" stroke="#34d399" strokeWidth={2} fill="url(#gradMeetings)" dot={false} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                )}
             </div>
 
             {/* Feature Usage */}
             <div className="bg-[#1A231F] border border-[#2A3430] rounded-xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-6">Feature Usage</h3>
-                <div className="h-[250px] w-full flex items-end justify-around px-4 group">
-                    {[
-                        { label: 'Video Calls', val: 82 },
-                        { label: 'Chat', val: 91 },
-                        { label: 'Documents', val: 64 },
-                        { label: 'Calendar', val: 75 },
-                        { label: 'Analytics', val: 42 },
-                    ].map((bar) => (
-                        <div key={bar.label} className="flex flex-col items-center gap-3 w-12">
-                            <div
-                                className="w-full bg-emerald-600/40 border border-emerald-500/60 rounded-t-md hover:bg-emerald-600/60 transition-all cursor-pointer"
-                                style={{ height: `${bar.val}%` }}
-                            ></div>
-                            <span className="text-[10px] text-gray-500 whitespace-nowrap">{bar.label}</span>
-                        </div>
-                    ))}
-                    {/* Y-Axis for Feature Usage */}
-                    <div className="flex flex-col justify-between h-full text-[10px] text-gray-600 absolute left-[calc(50%+1rem)] pr-2">
-                        <span>100</span>
-                        <span>75</span>
-                        <span>50</span>
-                        <span>25</span>
-                        <span>0</span>
-                    </div>
-                </div>
+                {loading ? (
+                    <div className="h-62.5 bg-white/5 rounded-lg animate-pulse" />
+                ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={barData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#2A3430" />
+                            <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+                            <Tooltip contentStyle={tooltipStyle} />
+                            <Bar dataKey="count" name="Count" fill="#10b981" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                )}
             </div>
         </div>
     );

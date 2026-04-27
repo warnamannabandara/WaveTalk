@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Settings, Video } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, Video, LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 const AdminSidebar = () => {
     const navItems = [
@@ -12,17 +14,18 @@ const AdminSidebar = () => {
     ];
 
     const pathname = usePathname();
+    const { user, logout } = useAuth();
 
     return (
         <div className="w-64 h-full bg-[#111815] border-r border-[#1E2923] flex flex-col justify-between p-4">
             <div>
                 {/* Logo */}
-                <div className="flex items-center gap-3 px-2 mb-8 mt-2">
-                    <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-                        <Video className="text-white w-5 h-5" />
+                <Link href="/" className="flex items-center gap-3 px-2 mb-8 mt-2 group transition-opacity hover:opacity-90">
+                    <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-900/50 ring-1 ring-white/10 group-hover:scale-105 transition-all">
+                        <Video className="text-white w-4 h-4" />
                     </div>
-                    <h1 className="text-xl font-semibold text-white tracking-tight">WaveTalk</h1>
-                </div>
+                    <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 tracking-tight">WaveTalk</h1>
+                </Link>
 
                 {/* Nav */}
                 <nav className="space-y-1">
@@ -45,17 +48,46 @@ const AdminSidebar = () => {
                 </nav>
             </div>
 
-            {/* User */}
-            <div className="pt-4 border-t border-[#1E2923]">
-                <div className="flex items-center gap-3 px-2 w-full p-2 rounded-lg">
-                    <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center border border-emerald-800">
-                        <span className="text-xs font-medium text-emerald-200">JD</span>
-                    </div>
-                    <div className="flex-1 min-w-0 text-left">
-                        <p className="text-sm font-medium text-white truncate">John Doe</p>
-                        <p className="text-xs text-gray-500 truncate">john@example.com</p>
-                    </div>
+            {/* Bottom section */}
+            <div className="pt-4 border-t border-[#1E2923] space-y-3">
+                {/* Theme toggle row */}
+                <div className="flex items-center justify-between px-2">
+                    <span className="text-xs font-medium text-gray-500">Theme</span>
+                    <ThemeToggle />
                 </div>
+
+                {/* User info */}
+                {user ? (
+                    <div className="flex items-center gap-3 px-2 w-full p-2 rounded-lg group hover:bg-white/5 transition-colors">
+                        <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center border border-emerald-800 shrink-0">
+                            <span className="text-xs font-medium text-emerald-200">
+                                {user.name?.[0]?.toUpperCase() || 'U'}
+                            </span>
+                        </div>
+                        <div className="flex-1 min-w-0 text-left">
+                            <p className="text-sm font-medium text-white truncate">
+                                {user.name || 'Admin User'}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        </div>
+                        <button
+                            onClick={logout}
+                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-md opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                            title="Log out"
+                        >
+                            <LogOut className="w-4 h-4" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-3 px-2 w-full p-2 rounded-lg">
+                        <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center shrink-0">
+                            <span className="text-xs font-medium text-gray-400">?</span>
+                        </div>
+                        <div className="flex-1 min-w-0 text-left">
+                            <p className="text-sm font-medium text-gray-400 truncate">Not logged in</p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
