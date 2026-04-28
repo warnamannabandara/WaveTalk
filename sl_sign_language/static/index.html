@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Sign Language Translation</title>
+    
+    <!-- MediaPipe dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        canvas {
+            display: block;
+            border-radius: 8px;
+            background-color: #000;
+            margin-bottom: 20px;
+        }
+        .output-box {
+            width: 100%;
+            max-width: 640px;
+            background: #eef2f5;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #d1d8e0;
+        }
+        .sentence {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2980b9;
+            min-height: 40px;
+        }
+        .status {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .speak-btn {
+            background-color: #2ecc71;
+        }
+        .speak-btn:hover {
+            background-color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Live Sign Language Translation</h1>
+    <div class="container">
+        <!-- Hidden video element -->
+        <video class="input_video" style="display: none;"></video>
+        
+        <!-- Canvas to display the webcam feed overlaid with landmarks -->
+        <canvas class="output_canvas" width="640" height="480"></canvas>
+        
+        <div class="output-box">
+            <div id="sentenceDisplay" class="sentence">Waiting for gestures...</div>
+            <div class="status">
+                <span id="wordStatus">Last Word: -</span>
+                <span id="connectionStatus">Connecting to Server...</span>
+            </div>
+            <div class="controls">
+                <button onclick="clearSentence()">Clear Sentence</button>
+                <button class="speak-btn" onclick="speakSentence()">🔊 Speak Sentence</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const canvasElement = document.getElementsByClassName('output_canvas')[0];
+        const canvasCtx = canvasElement.getContext('2d');
+        const sentenceDisplay = document.getElementById('sentenceDisplay');
+        const wordStatus = document.getElementById('wordStatus');
+        const connectionStatus = document.getElementById('connectionStatus');
+        let currentSentenceText = "Waiting for gestures...";
+
+        // Speak the sentence using Web Speech API
+        function speakSentence() {
+            if (currentSentenceText && currentSentenceText !== "Waiting for gestures...") {
+                const utterance = new SpeechSynthesisUtterance(currentSentenceText);
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Clear the sentence locally
+        function clearSentence() {
+            currentSentenceText = "";
+            sentenceDisplay.innerText = "Waiting for gestures...";
+            wordStatus.innerText = "Last Word: -";
+        }
+
+        // Setup WebSocket to connect to FastAPI with auto-reconnect
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        let ws;
+        let reconnectTimer = null;
+
+        function connectWebSocket() {
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+            ws.onopen = () => {
+                connectionStatus.innerText = "Connected";
+                connectionStatus.style.color = "green";
+                if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+            };
+
+            ws.onclose = () => {
+                connectionStatus.innerText = "Reconnecting...";
+                connectionStatus.style.color = "orange";
+                reconnectTimer = setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = () => {
+                ws.close();
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                currentSentenceText = data.sentence;
+                sentenceDisplay.innerText = data.sentence;
+                wordStatus.innerText = `Last Word: ${data.word} (${(data.confidence * 100).toFixed(1)}%)`;
+            };
+        }
+
+        connectWebSocket();
+
+        // Handling the MediaPipe Results
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            
+            // We want to combine pose, left_hand, and right_hand into a flat array
+            // Pose: 33 landmarks, Left Hand: 21 landmarks, Right Hand: 21 landmarks
+            
+            // Draw Pose
+            if (results.poseLandmarks) {
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
+                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FF0000', lineWidth: 2});
+            }
+            
+            // Draw Left Hand
+            if (results.leftHandLandmarks) {
+                drawConnectors(canvasCtx, results.leftHandLandmarks, HAND_CONNECTIONS, {color: '#CC0000', lineWidth: 5});
+                drawLandmarks(canvasCtx, results.leftHandLandmarks, {color: '#00FF00', lineWidth: 2});
+            }
+            
+            // Draw Right Hand
+            if (results.rightHandLandmarks) {
+                drawConnectors(canvasCtx, results.rightHandLandmarks, HAND_CONNECTIONS, {color: '#00CC00', lineWidth: 5});
+                drawLandmarks(canvasCtx, results.rightHandLandmarks, {color: '#FF0000', lineWidth: 2});
+            }
+
+            // Send 132 features per frame: 33 pose landmarks × (x, y, z, visibility)
+            // Normalisation mirrors train_model.py:
+            //   - Translation: subtract nose (landmark 0)
+            //   - Scale: divide by shoulder width (landmarks 11 & 12) for distance invariance
+            if (results.poseLandmarks) {
+                const lms = results.poseLandmarks;
+                const nose = lms[0] || {x: 0, y: 0, z: 0};
+                const noseX = nose.x, noseY = nose.y, noseZ = nose.z;
+
+                // Shoulder-width scale normalisation
+                const lShoulder = lms[11], rShoulder = lms[12];
+                let shoulderWidth = (lShoulder && rShoulder)
+                    ? Math.abs(lShoulder.x - rShoulder.x)
+                    : 0;
+                const scale = shoulderWidth > 1e-5 ? shoulderWidth : 1.0;
+
+                let frameFeatures = [];
+                lms.forEach(lm => {
+                    frameFeatures.push(
+                        (lm.x - noseX) / scale,
+                        (lm.y - noseY) / scale,
+                        (lm.z - noseZ) / scale,
+                        lm.visibility !== undefined ? lm.visibility : 0
+                    );
+                });
+
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify(frameFeatures));
+                }
+            }
+            canvasCtx.restore();
+        }
+
+        // Initialize MediaPipe Holistic
+        const holistic = new Holistic({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
+        }});
+        
+        holistic.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            smoothSegmentation: false,
+            refineFaceLandmarks: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        
+        holistic.onResults(onResults);
+
+        // Start Camera
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await holistic.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start();
+    </script>
+</body>
+</html>
