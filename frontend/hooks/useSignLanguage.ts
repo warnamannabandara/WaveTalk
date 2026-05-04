@@ -21,12 +21,17 @@ const WASM_PATH = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/w
 const MODEL_PATH =
     'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 
-// Singleton so the model isn't reloaded on every hook mount
-let landmarkerPromise: Promise<PoseLandmarkerInstance> | null = null;
+// Stored on window so Turbopack HMR module re-evaluation doesn't trigger a
+// second WASM init while the first runtime is still alive in the browser.
+type WinWithLandmarker = typeof window & {
+    __poseLandmarkerPromise?: Promise<PoseLandmarkerInstance>;
+};
 
-async function getPoseLandmarker(): Promise<PoseLandmarkerInstance> {
-    if (!landmarkerPromise) {
-        landmarkerPromise = (async () => {
+function getPoseLandmarker(): Promise<PoseLandmarkerInstance> {
+    if (typeof window === 'undefined') return Promise.reject(new Error('SSR'));
+    const w = window as WinWithLandmarker;
+    if (!w.__poseLandmarkerPromise) {
+        w.__poseLandmarkerPromise = (async () => {
             const { PoseLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
             const vision = await FilesetResolver.forVisionTasks(WASM_PATH);
             return PoseLandmarker.createFromOptions(vision, {
@@ -35,11 +40,11 @@ async function getPoseLandmarker(): Promise<PoseLandmarkerInstance> {
                 numPoses: 1,
             }) as unknown as PoseLandmarkerInstance;
         })().catch(err => {
-            landmarkerPromise = null; // allow retry on next call
+            delete w.__poseLandmarkerPromise; // allow retry on next call
             throw err;
         });
     }
-    return landmarkerPromise;
+    return w.__poseLandmarkerPromise;
 }
 
 // ── Hook ────────────────────────────────────────────────────────────────────
