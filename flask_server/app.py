@@ -54,7 +54,7 @@ load_model()
 session_state = {}
 
 MAX_FRAMES = 50
-FEATURE_DIM = 33 * 4   # 33 pose landmarks × (x, y, z, visibility) — must match train_model.py
+FEATURE_DIM = 33 * 3   # 33 pose landmarks × (x, y, z) — must match model expectations
 
 CONFIDENCE_THRESHOLD = 0.55
 PREDICTION_BUFFER_SIZE = 30

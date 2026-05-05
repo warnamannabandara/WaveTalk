@@ -132,12 +132,19 @@ export default function SignLanguagePage() {
 
                     // Build 99-feature vector: 33 landmarks * (x, y, z)
                     const features: number[] = [];
-                    for (let i = 0; i < 33; i++) {
-                        const lm = results.poseLandmarks[i];
-                        if (lm) {
-                            features.push(lm.x, lm.y, lm.z);
-                        } else {
-                            features.push(0, 0, 0);
+                    const lms = results.poseLandmarks;
+                    if (lms.length === 33) {
+                        for (let i = 0; i < 33; i++) {
+                            const lm = lms[i];
+                            if (lm) {
+                                features.push(
+                                    lm.x,
+                                    lm.y,
+                                    lm.z
+                                );
+                            } else {
+                                features.push(0, 0, 0);
+                            }
                         }
                     }
 

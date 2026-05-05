@@ -10,7 +10,7 @@ export interface SignDetectionState {
 }
 
 // ── MediaPipe types (loaded dynamically) ────────────────────────────────────
-interface Landmark { x: number; y: number; z: number }
+interface Landmark { x: number; y: number; z: number; visibility?: number }
 interface PoseLandmarkerResult { landmarks: Landmark[][] }
 interface PoseLandmarkerInstance {
     detectForVideo(video: HTMLVideoElement, timestamp: number): PoseLandmarkerResult;
@@ -153,9 +153,14 @@ export function useSignLanguage(
                     lastFrameRef.current = ts;
                     try {
                         const result = landmarker.detectForVideo(videoElRef.current, ts);
-                        if (result.landmarks?.[0]?.length === 33) {
-                            const flat = result.landmarks[0].flatMap(lm => [lm.x, lm.y, lm.z]);
-                            // Model expects exactly 99 features (33 pose keypoints × x,y,z)
+                        const lms = result.landmarks?.[0];
+                        if (lms?.length === 33) {
+                            const flat = lms.flatMap(lm => [
+                                lm.x,
+                                lm.y,
+                                lm.z
+                            ]);
+                            // 33 landmarks × (x, y, z) = 99 features
                             if (flat.length === 99 && flaskSocketRef.current?.connected) {
                                 flaskSocketRef.current.emit('landmarks', flat);
                             }
