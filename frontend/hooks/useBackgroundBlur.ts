@@ -39,6 +39,7 @@ export function useBackgroundBlur(
     const configRef = useRef(config);
     configRef.current = config;
     const segmenterRef = useRef<Segmenter | null>(null);
+    const lastSegTimestampRef = useRef<number>(-1);
 
     const stopProcessing = useCallback(() => {
         if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
@@ -112,7 +113,17 @@ export function useBackgroundBlur(
                         outputCategoryMask: false,
                         outputConfidenceMasks: true,
                     });
-                    if (!cancelled) segmenterRef.current = seg as unknown as Segmenter;
+                    if (!cancelled) {
+                        segmenterRef.current = seg as unknown as Segmenter;
+                        // TF Lite WASM emits a benign "INFO: Created TensorFlow Lite XNNPACK delegate for CPU."
+                        // via console.error on the first inference. Intercept and drop it once.
+                        const orig = console.error;
+                        console.error = (...args: Parameters<typeof console.error>) => {
+                            console.error = orig;
+                            if (typeof args[0] === 'string' && args[0].startsWith('INFO:')) return;
+                            orig.apply(console, args);
+                        };
+                    }
                 } catch {
                     console.warn('[BackgroundBlur] MediaPipe segmenter unavailable, using fallback');
                 }
@@ -134,13 +145,18 @@ export function useBackgroundBlur(
                 if (seg) {
                     // ── Proper segmentation: person in front, background replaced ──
                     let maskData: Float32Array | null = null;
-                    try {
-                        const result = seg.segmentForVideo(v, performance.now());
-                        if (result.confidenceMasks?.[0]) {
-                            maskData = result.confidenceMasks[0].getAsFloat32Array();
-                        }
-                        result.close();
-                    } catch { /* skip frame on error */ }
+                    const now = performance.now();
+                    // MediaPipe requires strictly increasing timestamps; skip frame if not advancing
+                    if (now > lastSegTimestampRef.current) {
+                        lastSegTimestampRef.current = now;
+                        try {
+                            const result = seg.segmentForVideo(v, now);
+                            if (result.confidenceMasks?.[0]) {
+                                maskData = result.confidenceMasks[0].getAsFloat32Array();
+                            }
+                            result.close();
+                        } catch { /* skip frame on error */ }
+                    }
 
                     if (maskData) {
                         // Draw background effect to offscreen canvas
