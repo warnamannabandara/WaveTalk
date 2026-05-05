@@ -275,6 +275,7 @@ export function useMeeting(meetingId: string, onEnd: () => void, noiseCancellati
 
             // 5. New participant joined → pre-register; wait for their offer
             socket.on('meeting:participant:joined', ({ user: u }: { user: { _id: string; name: string; avatar: string } }) => {
+                if (u._id === user._id) return; // ignore our own sign-language socket re-joining
                 if (!participantsRef.current.has(u._id)) {
                     participantsRef.current.set(u._id, {
                         userId: u._id,
