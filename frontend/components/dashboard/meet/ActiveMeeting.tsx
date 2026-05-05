@@ -316,7 +316,7 @@ const ActiveMeeting = ({ meetingId, onEnd }: ActiveMeetingProps) => {
                     localName="You"
                     micOn={micOn}
                     videoOn={videoOn}
-                    localCaption={signLangEnabled && detection.sentence ? detection : null}
+                    localCaption={signLangEnabled && (detection.sentence || detection.word) ? detection : null}
                     localSpeechCaption={sttOn ? localSpeechCaption : undefined}
                     remoteParticipants={remoteParticipants}
                     participantCaptions={participantCaptions}
